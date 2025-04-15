@@ -1,1 +1,145 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Arena Kodu - Online</title>
+  <style>
+    body { font-family: sans-serif; background: #111; color: #eee; padding: 20px; }
+    input, select, button { padding: 8px; margin: 5px; }
+    .hidden { display: none; }
+    #game { margin-top: 20px; }
+    .player { margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Arena Kodu</h1>
 
+  <div id="lobby">
+    <input id="name" placeholder="Twoje imię" />
+    <select id="class">
+      <option value="Wojownik">Wojownik</option>
+      <option value="Mag">Mag</option>
+      <option value="Złodziej">Złodziej</option>
+    </select><br/>
+    <button onclick="createRoom()">Stwórz pokój</button>
+    <input id="roomCode" placeholder="Kod pokoju" />
+    <button onclick="joinRoom()">Dołącz</button>
+  </div>
+
+  <div id="waiting" class="hidden">
+    <h2>Pokój: <span id="roomId"></span></h2>
+    <p>Czekamy na graczy...</p>
+    <button onclick="startGame()">Start</button>
+    <div id="playerList"></div>
+  </div>
+
+  <div id="game" class="hidden">
+    <h2>Gra w toku</h2>
+    <div id="players"></div>
+    <p><strong>Ruch:</strong> <span id="currentTurn"></span></p>
+    <div id="actions">
+      <button onclick="sendAction('attack')">Atak</button>
+      <button onclick="sendAction('defend')">Obrona</button>
+      <button onclick="sendAction('special')">Specjal</button>
+    </div>
+    <pre id="log"></pre>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let currentRoom = "";
+    let myId = "";
+    let myName = "";
+
+    socket.on("roomCreated", roomId => {
+      currentRoom = roomId;
+      document.getElementById("roomId").textContent = roomId;
+      document.getElementById("lobby").classList.add("hidden");
+      document.getElementById("waiting").classList.remove("hidden");
+    });
+
+    socket.on("playerJoined", players => {
+      updatePlayerList(players);
+    });
+
+    socket.on("gameStarted", state => {
+      document.getElementById("waiting").classList.add("hidden");
+      document.getElementById("game").classList.remove("hidden");
+      updateGame(state.players, state.turn, "Gra się rozpoczęła!");
+    });
+
+    socket.on("updateState", data => {
+      updateGame(data.players, data.turn, data.log);
+    });
+83170536
+    socket.on("gameEnded", msg => {
+      document.getElementById("actions").classList.add("hidden");
+    });
+
+    socket.on("playerLeft", players => {
+      updatePlayerList(players);
+    });
+
+    socket.on("joinFailed", () => {
+      alert("Nie udało się dołączyć.");
+    });
+
+    function createRoom() {
+      myName = document.getElementById("name").value;
+      const cls = document.getElementById("class").value;
+      socket.emit("createRoom", { playerName: myName, playerClass: cls });
+    }
+
+    function joinRoom() {
+      myName = document.getElementById("name").value;
+      const cls = document.getElementById("class").value;
+      const code = document.getElementById("roomCode").value;
+      currentRoom = code;
+      document.getElementById("roomId").textContent = code;
+      socket.emit("joinRoom", { roomId: code, playerName: myName, playerClass: cls });
+      document.getElementById("lobby").classList.add("hidden");
+      document.getElementById("waiting").classList.remove("hidden");
+    }
+
+    function startGame() {
+      socket.emit("startGame", currentRoom);
+    }
+
+    function sendAction(type) {
+      socket.emit("performAction", { roomId: currentRoom, action: type });
+    }
+
+    function updatePlayerList(players) {
+      const list = document.getElementById("playerList");
+      list.innerHTML = "<strong>Gracze:</strong><br/>";
+      players.forEach(p => {
+        list.innerHTML += `${p.name} (${p.cls})<br/>`;
+      });
+    }
+
+    function updateGame(players, turnIndex, log) {
+      myId = socket.id;
+      const currentPlayer = players[turnIndex];
+      const container = document.getElementById("players");
+      container.innerHTML = "";
+      players.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "player";
+        div.textContent = `${p.name} (${p.cls}) - ${p.hp <= 0 ? "Martwy" : `HP: ${p.hp}`}`;
+        container.appendChild(div);
+      });
+
+      document.getElementById("log").textContent = log;
+      document.getElementById("currentTurn").textContent = players[turnIndex].name;
+
+      if (players[turnIndex].id === myId) {
+        document.getElementById("actions").style.display = "block";
+      } else {
+        document.getElementById("actions").style.display = "none";
+      }
+    }
+  </script>
+</body>
+</html>
