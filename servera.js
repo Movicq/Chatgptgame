@@ -8,14 +8,6 @@ app.use(express.static('public'));
 
 io.on('connection', socket => {
   console.log('Gracz połączony:', socket.id);
-
-  socket.on('message', msg => {
-    io.emit('message', msg);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Gracz rozłączony:', socket.id);
-  });
 });
 
 http.listen(PORT, () => {
